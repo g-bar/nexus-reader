@@ -11,3 +11,5 @@
 !/sync
 !/sync/audio
 !/sync/audio/*.m4a
+!/fonts
+!/fonts/NotoSerif-Regular.woff2
