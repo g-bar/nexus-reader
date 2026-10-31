@@ -5,6 +5,7 @@
 *
 
 !/.gitignore
+!/robots.txt
 !/index.html
 !/nexus_data.js
 !/.nojekyll
