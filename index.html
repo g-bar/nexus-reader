@@ -52,9 +52,11 @@ function ipaHtml(s){ return s.split(' | ').map(x=>x.trim()).join(' <span class="
 
 D.forEach((bk,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=bk.n+' · '+bk.title; bookSel.appendChild(o); });
 
+function playFrom(t){ audio.currentTime=Math.max(0,t-1); audio.play(); }
+function resumePlay(){ playFrom(audio.currentTime); }
 function tapAt(t){
   if(!audio.paused){ audio.pause(); return; }
-  const go=()=>{ audio.currentTime=t; audio.play(); };
+  const go=()=>{ playFrom(t); };
   audio.readyState>=1 ? go() : audio.addEventListener('loadedmetadata',go,{once:true});
 }
 function setHash(id){ history.replaceState(null,'','#'+id); }
@@ -106,12 +108,13 @@ audio.addEventListener('timeupdate',()=>{ tick(); const d=audio.duration||0;
   time.textContent=fmt(audio.currentTime)+' / '+fmt(d); });
 
 const play=document.getElementById('play'), time=document.getElementById('time');
-play.onclick=()=>{ audio.paused?audio.play():audio.pause(); };
+function togglePlay(){ audio.paused?resumePlay():audio.pause(); }
+play.onclick=togglePlay;
 audio.onplay=()=>play.textContent='⏸'; audio.onpause=()=>play.textContent='▶';
 document.addEventListener('keydown',e=>{
   if(e.code!=='Space') return;
   const t=e.target.tagName; if(t==='SELECT'||t==='INPUT'||t==='BUTTON') return;
-  e.preventDefault(); audio.paused?audio.play():audio.pause();
+  e.preventDefault(); togglePlay();
 });
 
 const speeds=[0.75,1.0,1.25,1.5], spd=document.getElementById('spd'); let si=1;
