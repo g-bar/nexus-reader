@@ -1,0 +1,173 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"><meta name="apple-mobile-web-app-capable" content="yes"><title>Nexus &middot; Prolog (phrasiert)</title><style>
+  :root { --bg:#faf8f4; --fg:#1a1a1a; --muted:#666; --ipa:#1d4a6b; --en:#555;
+          --accent:#6b1d1d; --hl:#fff3c4; --bar:#a9bccb; --card:#fff; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#15130f; --fg:#eceae4; --muted:#9a948a; --ipa:#8fb8d6; --en:#b8b2a6;
+            --accent:#d98b8b; --hl:#4a3d14; --bar:#50606e; --card:#201d17; }
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; background:var(--bg); color:var(--fg);
+    font-family:"Charis SIL","Gentium Plus",Georgia,serif; font-size:18px; line-height:1.4; }
+  header { position:sticky; top:0; z-index:5; background:var(--bg);
+    border-bottom:1px solid rgba(128,128,128,.25); padding:8px 12px; }
+  .row { display:flex; align-items:center; gap:8px; }
+  select, button { font:inherit; font-size:15px; color:var(--fg); background:var(--card);
+    border:1px solid rgba(128,128,128,.4); border-radius:8px; padding:6px 10px; }
+  button:active { transform:scale(.97); }
+  .toggles { margin-top:6px; display:flex; gap:6px; flex-wrap:wrap; }
+  .toggles button.off { opacity:.4; }
+  main { padding:8px 12px 140px; max-width:760px; margin:0 auto; }
+  .bookhead { margin:14px 0 10px; padding:6px 8px; border-radius:10px; cursor:pointer; scroll-margin-top:92px; }
+  .bookhead.active { background:var(--hl); }
+  .bookhead h1 { color:var(--accent); font-size:20px; margin:0; font-family:system-ui,sans-serif; }
+  .bookhead p { color:var(--muted); font-style:italic; font-size:14px; margin:3px 0 0; }
+  .h { margin:22px 0 10px 8px; padding:4px 8px; border-radius:10px; cursor:pointer; scroll-margin-top:92px;
+       color:var(--accent); font-weight:700; font-size:17px; font-family:system-ui,sans-serif; }
+  .h.active { background:var(--hl); }
+  .v { padding:7px 8px 7px 34px; position:relative; border-radius:10px; cursor:pointer; scroll-margin-top:92px; }
+  .v .num { position:absolute; left:4px; top:9px; font-size:11px; color:var(--muted); font-family:system-ui,sans-serif; }
+  .v .de { font-weight:600; }
+  .v .ipa { color:var(--ipa); font-size:15px; line-height:1.3; margin-top:1px; }
+  .v .en  { color:var(--en); font-style:italic; font-size:15px; line-height:1.3; margin-top:1px; }
+  .v .bar { color:var(--bar); }
+  .v .blk div { text-indent:-11px; padding-left:11px; }
+  .v.active { background:var(--hl); }
+  .v.noaudio .num { color:var(--accent); }
+  body.hideipa .ipa, body.hideen .en { display:none; }
+  footer { position:fixed; left:0; right:0; bottom:0; z-index:6; background:var(--card);
+    border-top:1px solid rgba(128,128,128,.3); padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+    display:grid; grid-template-columns:1fr auto 1fr; align-items:center; }
+  footer button.play { grid-column:2; justify-self:center; font-size:34px; width:72px; height:72px;
+    border-radius:50%; display:flex; align-items:center; justify-content:center; line-height:1; }
+  #time { grid-column:1; font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .spd { grid-column:3; justify-self:end; font-size:13px; min-width:46px; }
+</style></head><body><header><div class="row"><span style="font-weight:600">NEXUS &middot; Prolog</span><button id="btnTop" title="Nach oben" style="margin-left:auto">↑</button></div><div class="toggles"><button id="tIpa">IPA</button><button id="tEn">EN</button><button id="tFollow">Folgen: an</button></div></header><main id="main"></main><footer><span id="time">0:00 / 0:00</span><button class="play" id="play">▶</button><button class="spd" id="spd">1.0×</button></footer><audio id="audio" preload="metadata"></audio><script src="nexus_data.js"></script><script>
+function block(lines, cls, bracket){
+  return '<div class="blk '+cls+'">' + lines.map((ln,i)=>{
+    let t = esc(ln);
+    if(bracket){ if(i===0) t='['+t; if(i===lines.length-1) t=t+']'; }
+    return '<div>'+t+'</div>';
+  }).join('') + '</div>';
+}
+function renderEntry(de,ipa,en){
+  if(de.length <= 85) return '<div class="de">'+esc(de)+'</div>'+
+    (ipa?'<div class="ipa">['+ipaHtml(esc(ipa))+']</div>':'')+
+    (en?'<div class="en">'+esc(en)+'</div>':'');
+  const d=SEG_DE(de), p=SEG_IPA(ipa), g=SEG_EN(en);
+  return block(d,'de') + (ipa?block(p,'ipa',true):'') + (en?block(g,'en'):'');
+}
+
+
+const MIN_CHUNK = 30;
+const PUNCT = /,(?=\s)|;(?=\s)|:(?=\s)|\s[–—](?=\s)/g;
+function jsChunk(text, pattern, keepEnd){
+  const parts=[]; let last=0, m;
+  pattern.lastIndex=0;
+  while((m=pattern.exec(text))){
+    const end = keepEnd ? pattern.lastIndex : m.index;
+    parts.push(text.slice(last,end).trim());
+    last = pattern.lastIndex;
+  }
+  parts.push(text.slice(last).trim());
+  return parts.filter(p=>p);
+}
+function mergeSmall(parts){
+  const out=[];
+  for(const p of parts){
+    if(out.length && out[out.length-1].length < MIN_CHUNK) out[out.length-1]+=' '+p;
+    else out.push(p);
+  }
+  if(out.length>1 && out[out.length-1].length<MIN_CHUNK){ const tail=out.pop(); out[out.length-1]+=' '+tail; }
+  return out;
+}
+function SEG_DE(s){ return mergeSmall(jsChunk(s, new RegExp(PUNCT), true)); }
+function SEG_EN(s){ return mergeSmall(jsChunk(s, new RegExp(PUNCT), true)); }
+function SEG_IPA(s){ return mergeSmall(jsChunk(s, /\s\|\s/g, false)); }
+
+
+const D = window.NEX, main = document.getElementById('main'), audio = document.getElementById('audio');
+let follow = true, verseEls = [], flat = [];
+
+function fmt(t){ if(!isFinite(t)) return '0:00'; t=Math.max(0,t|0); const m=t/60|0,s=t%60; return m+':'+(s<10?'0':'')+s; }
+function esc(s){ return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function ipaHtml(s){ return s.split(' | ').map(x=>x.trim()).join(' <span class="bar">|</span> '); }
+
+function tapAt(t){
+  if(!audio.paused){ audio.pause(); return; }
+  const go=()=>{ audio.currentTime=t; audio.play(); };
+  audio.readyState>=1 ? go() : audio.addEventListener('loadedmetadata',go,{once:true});
+}
+function setHash(id){ history.replaceState(null,'','#'+id); }
+
+function renderBook(bk){
+  main.innerHTML=''; verseEls=[]; flat=[];
+  audio.src='sync/audio/prolog.m4a';
+  const h=document.createElement('div'); h.className='bookhead'; h.id='b'+bk.n+'-v0';
+  h.innerHTML='<h1>'+esc(bk.title)+'</h1>'; main.appendChild(h);
+  h.onclick=()=>{ tapAt(bk.head[0]); setHash(h.id); }; flat.push({el:h,b:bk.head[0],e:bk.head[1]});
+  bk.verses.forEach((v,idx)=>{
+    const [etype,de,ipa,en,tb,te]=v, n=idx+1;
+    const d=document.createElement('div');
+    d.id='b'+bk.n+'-v'+n;
+    if(etype==='H'){
+      d.className='h';
+      d.textContent=de;
+    } else {
+      d.className='v'+(tb==null?' noaudio':'');
+      const mark=(n%10===0)?n:'';
+      d.innerHTML='<span class="num">'+mark+'</span>'+renderEntry(de,ipa,en);
+    }
+    if(tb!=null){ d.onclick=()=>{ tapAt(tb); setHash(d.id); }; flat.push({el:d,b:tb,e:te}); }
+    main.appendChild(d); verseEls[n]=d;
+  });
+}
+
+let activeEl=null;
+function tick(){
+  const t=audio.currentTime; let lo=0,hi=flat.length-1,hit=-1;
+  while(lo<=hi){ const m=(lo+hi)>>1; if(flat[m].b<=t){ hit=m; lo=m+1; } else hi=m-1; }
+  let el=null;
+  if(hit>=0 && t<=flat[hit].e+0.4) el=flat[hit].el;
+  else if(hit>=0 && hit+1<flat.length) el=flat[hit].el;
+  if(el!==activeEl){
+    if(activeEl) activeEl.classList.remove('active');
+    activeEl=el;
+    if(el){ el.classList.add('active'); setHash(el.id);
+      if(follow){ const r=el.getBoundingClientRect();
+        if(r.top<100||r.bottom>innerHeight-150) el.scrollIntoView({block:'center',behavior:'smooth'}); } }
+  }
+}
+audio.addEventListener('timeupdate',()=>{ tick(); const d=audio.duration||0;
+  time.textContent=fmt(audio.currentTime)+' / '+fmt(d); });
+
+const play=document.getElementById('play'), time=document.getElementById('time');
+play.onclick=()=>{ audio.paused?audio.play():audio.pause(); };
+audio.onplay=()=>play.textContent='⏸'; audio.onpause=()=>play.textContent='▶';
+document.addEventListener('keydown',e=>{
+  if(e.code!=='Space') return;
+  const t=e.target.tagName; if(t==='SELECT'||t==='INPUT'||t==='BUTTON') return;
+  e.preventDefault(); audio.paused?audio.play():audio.pause();
+});
+
+const speeds=[0.75,1.0,1.25,1.5], spd=document.getElementById('spd'); let si=1;
+spd.onclick=()=>{ si=(si+1)%speeds.length; audio.playbackRate=speeds[si]; spd.textContent=speeds[si].toFixed(2).replace(/0$/,'')+'×'; };
+
+document.getElementById('btnTop').onclick=()=>window.scrollTo({top:0,behavior:'smooth'});
+const tIpa=document.getElementById('tIpa'),tEn=document.getElementById('tEn'),tFollow=document.getElementById('tFollow');
+tIpa.onclick=()=>{ document.body.classList.toggle('hideipa'); tIpa.classList.toggle('off'); };
+tEn.onclick=()=>{ document.body.classList.toggle('hideen'); tEn.classList.toggle('off'); };
+tFollow.onclick=()=>{ follow=!follow; tFollow.textContent='Folgen: '+(follow?'an':'aus'); tFollow.classList.toggle('off',!follow); };
+
+function parseHash(h){ const m=/^#b(\d+)-v(\d+)$/.exec(h||''); return m?{id:'b'+(+m[1])+'-v'+(+m[2])}:null; }
+renderBook(D[0]);
+const resume=parseHash(location.hash);
+if(resume){
+  const el=document.getElementById(resume.id);
+  if(el){
+    el.classList.add('active'); activeEl=el;
+    el.scrollIntoView({block:'center'});
+    const f=flat.find(x=>x.el===el);
+    if(f){ const go=()=>{ audio.currentTime=f.b; }; audio.readyState>=1?go():audio.addEventListener('loadedmetadata',go,{once:true}); }
+  }
+} else { window.scrollTo(0,0); }
+</script></body></html>
